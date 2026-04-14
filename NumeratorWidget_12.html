@@ -11,6 +11,7 @@
     <widget:preference name="indexCounters"   type="hidden" defaultValue="{}"></widget:preference>
     <widget:preference name="usedNumbers"     type="hidden" defaultValue="[]"></widget:preference>
     <widget:preference name="securityContext" type="list"   label="Security Context" defaultValue=""></widget:preference>
+    <widget:preference name="databaseURL"     type="text"   label="Central Database URL (Optional)" defaultValue="http://localhost:5000"></widget:preference>
     <widget:preference name="3DSpaceURL"      type="text"   label="3DSpace URL"
       defaultValue="https://r1132101868454-eu1-space.3dexperience.3ds.com/enovia"></widget:preference>
   </widget:preferences>
@@ -537,7 +538,16 @@
     _loadCounters: function() { try{ NW._counters=JSON.parse(widget.getValue('indexCounters')||'{}'); }catch(e){ NW._counters={}; } },
     _saveCounters: function() { widget.setValue('indexCounters', JSON.stringify(NW._counters)); },
 
-    _loadUsedNumbers: function() { try{ NW._usedNumbers=JSON.parse(widget.getValue('usedNumbers')||'[]'); }catch(e){ NW._usedNumbers=[]; } },
+    _loadUsedNumbers: function() { 
+      try{ NW._usedNumbers=JSON.parse(widget.getValue('usedNumbers')||'[]'); }catch(e){ NW._usedNumbers=[]; }
+      var dbUrl = (widget.getValue('databaseURL') || '').trim();
+      if(dbUrl) {
+         fetch(dbUrl + '/numbers')
+            .then(function(res){ return res.json(); })
+            .then(function(data){ if(data && data.numbers) NW._usedNumbers = data.numbers; })
+            .catch(function(e){ console.log('[NW] Failed to load DB:', e); });
+      }
+    },
     _saveUsedNumbers: function() { widget.setValue('usedNumbers', JSON.stringify(NW._usedNumbers)); },
 
     _isNumberUsed: function(num) { return NW._usedNumbers.indexOf(num) !== -1; },
@@ -545,6 +555,14 @@
       if (!NW._isNumberUsed(num)) {
         NW._usedNumbers.push(num);
         NW._saveUsedNumbers();
+        var dbUrl = (widget.getValue('databaseURL') || '').trim();
+        if(dbUrl) {
+          fetch(dbUrl + '/numbers', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ number: num })
+          }).catch(function(e){ console.log('[NW] DB POST error:', e); });
+        }
       }
     },
 
@@ -1026,7 +1044,7 @@
       var retries = 0;
       var maxRetries = 10;
 
-      var attemptSet = function() {
+      var doAttempt = function() {
         /* Build the final number. Counter is effectively incremented here. */
         var num = NW._build(cat);
 
@@ -1065,6 +1083,25 @@
             }
           }
         );
+      };
+
+      var attemptSet = function() {
+        var dbUrl = (widget.getValue('databaseURL') || '').trim();
+        if (dbUrl) {
+           NW._setWS('writing', '<div class="spinner"></div> Syncing central database...');
+           fetch(dbUrl + '/numbers')
+             .then(function(res) { return res.json(); })
+             .then(function(data) {
+                if (data && data.numbers) NW._usedNumbers = data.numbers;
+                doAttempt();
+             })
+             .catch(function(err) {
+                console.log('[NW] Failed to sync DB:', err);
+                doAttempt();
+             });
+        } else {
+           doAttempt();
+        }
       };
 
       attemptSet();
