@@ -489,16 +489,23 @@
     onLoad: function() {
       NW._baseUrl = (widget.getValue('3DSpaceURL') || '').trim().replace(/\/$/,'') || NW._SPACE;
       NW._loadCounters();
-      NW._loadUsedNumbers();
-      NW._render();
-      NW._loadContexts();
+      
+      widget.body.innerHTML = '<div style="padding:20px; font-family:Inter,sans-serif; font-size:14px; color:#555; text-align:center; margin-top:50px;"><div style="display:inline-block; width:24px; height:24px; border:3px solid #ccc; border-top-color:#368ec4; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:10px;"></div><br>Veritaban\u0131 senkronize ediliyor...<br>L\u00fctfen bekleyin.</div><style>@keyframes spin { to { transform: rotate(360deg); } }</style>';
+
+      NW._loadUsedNumbersAsync(function() {
+          NW._render();
+          NW._loadContexts();
+      });
     },
     onRefresh: function() {
       NW._csrfToken = '';
       NW._loadCounters();
-      NW._loadUsedNumbers();
-      NW._renderCatList();
-      NW._updatePreview();
+      
+      widget.body.innerHTML = '<div style="padding:20px; font-family:Inter,sans-serif; font-size:14px; color:#555; text-align:center; margin-top:50px;"><div style="display:inline-block; width:24px; height:24px; border:3px solid #ccc; border-top-color:#368ec4; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:10px;"></div><br>Veritaban\u0131 senkronize ediliyor...<br>L\u00fctfen bekleyin.</div><style>@keyframes spin { to { transform: rotate(360deg); } }</style>';
+
+      NW._loadUsedNumbersAsync(function() {
+          NW._render();
+      });
     },
 
     /* â”€â”€ SecurityContext â”€â”€ */
@@ -538,14 +545,32 @@
     _loadCounters: function() { try{ NW._counters=JSON.parse(widget.getValue('indexCounters')||'{}'); }catch(e){ NW._counters={}; } },
     _saveCounters: function() { widget.setValue('indexCounters', JSON.stringify(NW._counters)); },
 
-    _loadUsedNumbers: function() { 
-      try{ NW._usedNumbers=JSON.parse(widget.getValue('usedNumbers')||'[]'); }catch(e){ NW._usedNumbers=[]; }
-      var dbUrl = (widget.getValue('databaseURL') || '').trim();
-      if(dbUrl) {
+    _loadUsedNumbersAsync: function(callback) { 
+      var localNum = [];
+      try{ localNum=JSON.parse(widget.getValue('usedNumbers')||'[]'); }catch(e){}
+      var dbUrl = "http://127.0.0.1:5050";
+      try {
          fetch(dbUrl + '/numbers')
             .then(function(res){ return res.json(); })
-            .then(function(data){ if(data && data.numbers) NW._usedNumbers = data.numbers; })
-            .catch(function(e){ console.log('[NW] Failed to load DB:', e); });
+            .then(function(data){ 
+               if(data && data.numbers) { 
+                   var combined = localNum.concat(data.numbers);
+                   var unique = [];
+                   for(var i=0; i<combined.length; i++) {
+                       if(unique.indexOf(combined[i]) === -1) unique.push(combined[i]);
+                   }
+                   NW._usedNumbers = unique;
+               } else { NW._usedNumbers = localNum; }
+               if(callback) callback();
+            })
+            .catch(function(e){ 
+               console.log('[NW] Failed to load DB:', e); 
+               NW._usedNumbers = localNum;
+               if(callback) callback();
+            });
+      } catch(e) {
+          NW._usedNumbers = localNum;
+          if(callback) callback();
       }
     },
     _saveUsedNumbers: function() { widget.setValue('usedNumbers', JSON.stringify(NW._usedNumbers)); },
@@ -555,14 +580,12 @@
       if (!NW._isNumberUsed(num)) {
         NW._usedNumbers.push(num);
         NW._saveUsedNumbers();
-        var dbUrl = (widget.getValue('databaseURL') || '').trim();
-        if(dbUrl) {
-          fetch(dbUrl + '/numbers', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ number: num })
-          }).catch(function(e){ console.log('[NW] DB POST error:', e); });
-        }
+        var dbUrl = "http://127.0.0.1:5050";
+        fetch(dbUrl + '/numbers', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ number: num })
+        }).catch(function(e){ console.log('[NW] DB POST error:', e); });
       }
     },
 
