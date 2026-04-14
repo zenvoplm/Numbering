@@ -11,7 +11,7 @@
     <widget:preference name="indexCounters"   type="hidden" defaultValue="{}"></widget:preference>
     <widget:preference name="usedNumbers"     type="hidden" defaultValue="[]"></widget:preference>
     <widget:preference name="securityContext" type="list"   label="Security Context" defaultValue=""></widget:preference>
-    <widget:preference name="databaseURL"     type="hidden" defaultValue="http://127.0.0.1:5000"></widget:preference>
+    <widget:preference name="databaseURL"     type="hidden" defaultValue="http://127.0.0.1:5050"></widget:preference>
     <widget:preference name="3DSpaceURL"      type="text"   label="3DSpace URL"
       defaultValue="https://r1132101868454-eu1-space.3dexperience.3ds.com/enovia"></widget:preference>
   </widget:preferences>
@@ -1044,7 +1044,7 @@
       var retries = 0;
       var maxRetries = 10;
 
-      var doAttempt = function() {
+      var attemptSet = function() {
         /* Build the final number. Counter is effectively incremented here. */
         var num = NW._build(cat);
 
@@ -1083,25 +1083,6 @@
             }
           }
         );
-      };
-
-      var attemptSet = function() {
-        var dbUrl = (widget.getValue('databaseURL') || '').trim();
-        if (dbUrl) {
-           NW._setWS('writing', '<div class="spinner"></div> Syncing central database...');
-           fetch(dbUrl + '/numbers')
-             .then(function(res) { return res.json(); })
-             .then(function(data) {
-                if (data && data.numbers) NW._usedNumbers = data.numbers;
-                doAttempt();
-             })
-             .catch(function(err) {
-                console.log('[NW] Failed to sync DB:', err);
-                doAttempt();
-             });
-        } else {
-           doAttempt();
-        }
       };
 
       attemptSet();
